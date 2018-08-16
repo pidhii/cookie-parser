@@ -1,3 +1,5 @@
+#pragma once 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -123,17 +125,13 @@ cookie* cookie_load(cookie* self, const char* data) {
     // Parse cookie-name.
     p2 = parse_cookie_name(p1);
     // MUST contain at least one token.
-    if (p2 == p1 || *p2++ != '=') {
-      // fprintf(stderr, "ERR at %d\n", __LINE__);
+    if (p2 == p1 || *p2++ != '=')
       return NULL;
-    }
     kvs[nkvs].key = p1 - data;
 
     // Parse cookie-value.
-    if (!(p1 = parse_cookie_value(p2, &qq))) {
-      // fprintf(stderr, "ERR at %d\n", __LINE__);
+    if (!(p1 = parse_cookie_value(p2, &qq)))
       return NULL;
-    }
     // if (qq)
       // p2 += 1;
 
@@ -150,17 +148,13 @@ cookie* cookie_load(cookie* self, const char* data) {
         // fputs("loopng...\n", stderr);
         p1 += qq;
       }
-      if (*p1) {
-        // fprintf(stderr, "ERR at %d: *p1 = 0x%x\n", __LINE__, *(uint8_t*)p1);
+      if (*p1)
         return NULL;
-      }
 
       // End.
-      // fputs("end\n", stderr);
       break;
 
     } else if (*p1++ != ';' || *p1++ != ' ') {
-      // fprintf(stderr, "ERR at %d\n", __LINE__);
       return NULL;
     }
   }
@@ -205,7 +199,7 @@ int cookie_val_len(const cookie* self, int _i) {
  * The user agent SHOULD sort the cookie-list in the following order:
  *     *  Cookies with longer paths are listed before cookies with
  *        shorter paths.
- *  ...
+ *  => Iterate from the end.
  */  
 static
 int cookie_find(const cookie* self, const char* _data, const char* _key) {
@@ -218,4 +212,78 @@ int cookie_find(const cookie* self, const char* _data, const char* _key) {
   }
 
   return -1;
+}
+
+/*
+ * DESCRIPTION:
+ * Iterate over cookie's key/value-pairs.
+ *
+ * ARGUMENTS:
+ *  - data    [in]   : input cookie string, or pointer returned from last call (see "RETURN VALUE");
+ *  - key     [out]  : after succesfull call will point on the cookie-name string;
+ *  - key_len [out]  : after succesfull call will contain length of the cookie-name string;
+ *  - val     [out]  : after succesfull call will point on the cookie-value string;
+ *  - val_len [out]  : after succesfull call will contain length of the cookie-value string.
+ *
+ * RETURN VALUE:
+ * Pointer to be passed to this function for next iteration.
+ * Error status is returned via argument `err`:
+ *  - parsing succeed:
+ *      > 0: next key/value-pair detected;
+ *       0 : this is the last key/value-pair.
+ *  - parsing error:
+ *      < 0: bad cookie.
+ */
+static
+const char* cookie_iter(const char* _data, const char** _key_, int* _key_len_, const char** _val_, int* _val_len_, int* _err_) {
+  const char *p1, *p2;
+  int qq;
+
+  // Skip OWS.
+  p1 = _data;
+  while ((qq = skip_ows(p1)))
+    p1 += qq;
+  *_key_ = p1;
+
+  // Parse cookie-name.
+  p2 = parse_cookie_name(p1);
+  // MUST contain at least one token.
+  if (p2 == p1 || *p2++ != '=')
+    goto L_RET_ERR;
+
+  // Parse cookie-value.
+  if (!(p1 = parse_cookie_value(p2, &qq)))
+    goto L_RET_ERR;
+
+  *_val_ = p2;
+  *_key_len_ = p2 - *_key_ - 1;
+
+  // Process end/delimiter.
+  if (!*p1 || skip_ows(p1)) {
+    *_val_len_ = p1 - p2;
+
+    // Check trailing OWS.
+    while (( qq = skip_ows(p1) )) {
+      p1 += qq;
+    }
+    if (*p1)
+      goto L_RET_ERR;
+
+    // End.
+    *_err_ = 0;
+    return NULL;
+
+  } else if (*p1++ != ';' || *p1++ != ' ') {
+    goto L_RET_ERR;
+  }
+
+  *_val_len_ = p1 - p2 - 2;
+
+  // Ok + have next pair.
+  *_err_ = 1;
+  return p1;
+
+L_RET_ERR:
+  *_err_ = -1;
+  return NULL;
 }

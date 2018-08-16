@@ -127,8 +127,7 @@ foreach my $pat (@patterns) {
   $cookie = replace($cookie, 'cookie-octets', \&cookie_octets);
   $cookie = replace($cookie, 'OWS', \&ows);
 
-  sub dq { '"' }
-  $cookie = replace($cookie, 'DQ', \&dq);
+  $cookie = replace($cookie, 'DQ', sub { '"'  });
  
   system('./checker', '-c', $cookie);
 
