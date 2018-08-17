@@ -3,8 +3,8 @@
 all: checker
 
 test: _test_ok _test_nok
-	@if grep -q 'status: err' test-ok.log; then echo "OK-test failed"; else echo "OK-test succeed"; fi
-	@if grep -q 'status: ok' test-nok.log; then echo "NOK-test failed"; else echo "NOK-test succeed"; fi
+	@if grep -q -e 'status: 0' -e 'correct: 0' test-ok.log; then echo "OK-test failed"; else echo "OK-test succeed"; fi
+	@if grep -q -e 'status: 1' test-nok.log; then echo "NOK-test failed"; else echo "NOK-test succeed"; fi
 
 _test_ok: checker
 	@for _ in {1..500}; do ./tester.pl --ok ; done > test-ok.log
@@ -20,10 +20,10 @@ test-srv: _launch $(foreach i,$(shell seq -s ' ' 1 20), _spawn$(i))
 
 # - - - - - - - - - - - - - - - - - - - -
 checker: main.c cookie.h
-	gcc -Og -ggdb -Wall -Wextra -Werror -Wno-sign-compare $< -o $@
+	gcc -Og -ggdb -Wall -Wextra -Werror -Wno-sign-compare $(CPPFLAGS) -o $@ $<
 
 script: script.c cookie.h
-	gcc $< -lfcgi -o $@
+	gcc -lfcgi -o $@ $(CPPFLAGS) $<
 
 # - - - - - - - - - - - - - - - - - - - -
 _launch: script

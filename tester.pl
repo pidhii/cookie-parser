@@ -57,10 +57,12 @@ sub replace {
   my $in = shift;
   my $match = shift;
   my $generator = shift;
+  my $dump = shift;
 
   my $i = 1;
   while ($in =~ /(.)$match-$i(.)/) {
     my $replace = process_mod($1, $generator->(10));
+    push @$dump, "$replace" if defined $dump;
     $in =~ s/(.)$match-$i(.)/$replace/g;
   } continue {
     $i++;
@@ -128,18 +130,44 @@ STDOUT->fdopen(\*SUBWR, "w") or die $!;
 # STDERR->fdopen(\*OUT, "w") or die $!;
 foreach my $pat (@patterns) {
   my $cookie = $pat;
+  my @key_in;
+  my @val_in;
+  my @key_out;
+  my @val_out;
 
-  $cookie = replace($cookie, 'cookie-name', \&cookie_name);
-  $cookie = replace($cookie, 'cookie-octets', \&cookie_octets);
+  $cookie = replace($cookie, 'cookie-name', \&cookie_name, \@key_in);
+  $cookie = replace($cookie, 'cookie-octets', \&cookie_octets, \@val_in);
   $cookie = replace($cookie, 'OWS', \&ows);
-
   $cookie = replace($cookie, 'DQ', sub { '"'  });
  
   system('./checker', '-c', $cookie);
+  while (1) {
+    chop(my $line = <SUBRD>);
+    last if $line eq "--END--";
+    push @key_out, $line;
+    chop($line = <SUBRD>);
+    push @val_out, $line;
+  }
 
-  chop(my $parse = <SUBRD>);
-  chop($parse);
-  push @res, { pattern => $pat, cookie => $cookie, parse =>$parse, ok => $? == 0};
+  my $correct = 1;
+  foreach my $i (0 .. $#key_in) {
+    $correct = 0 unless $key_in[$i] eq $key_out[$i] && $val_in[$i] eq $val_out[$i];
+  }
+
+  push @res, {
+    pattern => $pat,
+    cookie => $cookie,
+    parse => {
+      keys => \@key_out,
+      vals => \@val_out,
+    },
+    expect => {
+      keys => \@key_in,
+      vals => \@val_in,
+    },
+    correct => $correct,
+    ok => int($? == 0)
+  };
 }
 STDOUT->fdopen(\*OUT, "w");
 close OUT or die $!;
@@ -154,7 +182,15 @@ foreach my $r (@res) {
   say '-----------------------';
   say "pattern: $r->{pattern}";
   say "cookie: $r->{cookie}";
-  say "output: $r->{parse}";
+
+  print "parse:  ";
+  print "{ \"@{ $r->{parse}->{keys} }[$_]\" : \"@{ $r->{parse}->{vals} }[$_]\" } " foreach 0 .. $#{ $r->{parse}->{keys} };
+  say;
+
+  print "expect: ";
+  print "{ \"@{ $r->{expect}->{keys} }[$_]\" : \"@{ $r->{expect}->{vals} }[$_]\" } " foreach 0 .. $#{ $r->{expect}->{keys} };
+  say;
   # say "status: " . ($r->{ok} ? "\e[38;5;2mok\e[0m" : "\e[38;5;1merror\e[0m");
-  say "status: " . ($r->{ok} ? "ok" : "error");
+  say "correct: $r->{correct}";
+  say "status: $r->{ok}";
 }

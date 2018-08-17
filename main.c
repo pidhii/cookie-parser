@@ -54,19 +54,22 @@ int main (int argc, char** argv) {
     while ( (p = cookie_iter(p, &k, &k_len, &v, &v_len, &err)), err >= 0) {
       memcpy(key, k, k_len);
       key[k_len] = 0;
+      if (v[0] == '"') {
+        v++;
+        v_len -= 2;
+      }
       memcpy(val, v, v_len);
       val[v_len] = 0;
 
-      printf("{ \"%s\" : \"%s\" } ", key, val);
+      printf("%s\n%s\n", key, val);
       if (err == 0)
         break;
     }
 
     if (err < 0) {
-      printf("failed to load cookie\n");
+      printf("--END--\n");
       return -1;
     }
-    printf("\n");
-    fflush(stdout);
+    printf("--END--\n");
   }
 }
