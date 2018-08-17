@@ -76,6 +76,12 @@ my @patterns_ok = (
 @patterns_ok = (@patterns_ok, @patterns_ok) x10;
 
 my @patterns_nok = (
+  "",
+  "<OWS-1>",
+  "=",
+  "=; ",
+  ";",
+
   # invalid OWS
   "[OWS-1]$CRLF<cookie-name-1>=[DQ-1][cookie-octets-1][DQ-1][OWS-2]",
   "[OWS-1]<cookie-name-1>=[DQ-1][cookie-octets-1][DQ-1][OWS-2]$CRLF",

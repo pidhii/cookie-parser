@@ -20,7 +20,7 @@ test-srv: _launch $(foreach i,$(shell seq -s ' ' 1 20), _spawn$(i))
 
 # - - - - - - - - - - - - - - - - - - - -
 checker: main.c cookie.h
-	gcc -Og -ggdb -Wall -Wextra -Werror -Wno-sign-compare main.c -o $@
+	gcc -Og -ggdb -Wall -Wextra -Werror -Wno-sign-compare $< -o $@
 
 script: script.c cookie.h
 	gcc $< -lfcgi -o $@

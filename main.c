@@ -26,13 +26,6 @@ int main (int argc, char** argv) {
     return -1;
   }
 
-  // for (int i = 0; i < c.nkvs; i++) {
-  //   char* key = c.data + c.kvs[i].key;
-  //   char* val = c.data + c.kvs[i].val;
-  //   printf("{\"%s\" : \"%s\"} ", key, val);
-  // }
-  // printf("\n");
-
   if (key) {
     char buf[256];
     int id;
@@ -68,9 +61,12 @@ int main (int argc, char** argv) {
       if (err == 0)
         break;
     }
+
+    if (err < 0) {
+      printf("failed to load cookie\n");
+      return -1;
+    }
     printf("\n");
     fflush(stdout);
-    if (err < 0)
-      return -1;
   }
 }
