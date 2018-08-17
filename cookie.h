@@ -1,4 +1,5 @@
-#pragma once 
+#ifndef COOKIE_H
+#define COOKIE_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,6 +7,25 @@
 #include <stdint.h>
 
 #define NONE "NONE"
+
+
+#ifdef COOKIE_TEST
+# define COOKIE_COV_TESTS 7
+static int cookie_cov_test[COOKIE_COV_TESTS];
+
+#define CAT(A, B) A##B
+
+# define TEST_COV(__fn__) static int __fn__ ## _cov_id = __COUNTER__;
+# define ACCEPT_COV(__fn_id__) cookie_cov_test[__fn_id__ ## _cov_id] = 1
+# define DECL_COV(__ret_ty__, __fn_id__, ...) \
+   TEST_COV(__fn_id__) \
+   __ret_ty__ __fn_id__ (__VA_ARGS__) { \
+     ACCEPT_COV(__fn_id__);
+#else
+# define DECL_COV(__ret_ty__, __fn_id__, ...) __ret_ty__ __fn_id__ (__VA_ARGS__) {
+#endif
+
+#define  END_DECL_COV }
 
 /*
  * DESCRIPTION:
@@ -17,13 +37,12 @@
  *                | "{" | "}" | SP | HT
  * ``
  */
-static inline
-int is_sep(char c) {
+DECL_COV(static inline int, is_sep, char c)
   static char seps[] = "()<>@,;:\\\"/[]?={} \t";
   int i;
   for (i = 0; seps[i] != c && seps[i]; i++);
   return seps[i] == c;
-}
+END_DECL_COV
 
 /*
  * DESCRIPTION:
@@ -32,12 +51,11 @@ int is_sep(char c) {
  * cookie-octet = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
  * ``
  */
-static inline
-int is_cookie_octet(char c) {
+DECL_COV(static inline int, is_cookie_octet, char c)
   return (0x21 <= c && c <= 0x7E) 
       && c != 0x22 && c != 0x2C
       && c != 0x3B && c != 0x5C;
-}
+END_DECL_COV
 
 /*
  * DESCRIPTION:
@@ -46,18 +64,16 @@ int is_cookie_octet(char c) {
  * token = 1*<any CHAR except CTLs or separators>
  * ``
  */
-static inline
-int is_token(char c) {
+DECL_COV(static inline int, is_token, char c)
   return 32 <= c && c <= 126 && !is_sep(c);
-}
+END_DECL_COV
 
 #define is_ws(__c__) ((__c__) == ' ' || (__c__) == '\t' || (__c__) == '\v' || (__c__) == '\n')
-static inline
-int skip_ows(const char* s) {
+DECL_COV(static inline int, skip_ows, const char* s)
   int ret =  (s[0] == '\r' && s[1] == '\n' && is_ws(s[2])) ? 3 : is_ws(*s) ? 1 : 0;
   // printf("OWS: %s = %d\n", s, ret);
   return ret;
-}
+END_DECL_COV
 
 /*
  * DESCRIPTION:
@@ -69,11 +85,10 @@ int skip_ows(const char* s) {
  * RETURN VALUE:
  * Pointer on character right after the end of the value.
  */
-static inline
-const char* parse_cookie_name(const char* s) {
+DECL_COV(static inline const char*, parse_cookie_name, const char* s)
   while (is_token(*s++));
   return s - 1;
-}
+END_DECL_COV
 
 /*
  * DESCRIPTION:
@@ -85,8 +100,7 @@ const char* parse_cookie_name(const char* s) {
  * RETURN VALUE:
  * Pointer on character right after the end of the value.
  */
-static inline
-const char* parse_cookie_value(const char* s, int* _isquoted_) {
+DECL_COV(static inline const char*, parse_cookie_value, const char* s, int* _isquoted_)
   if (*s == '"') {
     *_isquoted_ = 1;
     s++;
@@ -99,7 +113,7 @@ const char* parse_cookie_value(const char* s, int* _isquoted_) {
     return NULL;
   }
   return s - 1;
-}
+END_DECL_COV
 
 typedef struct { uint32_t key, val; } _cookie_keyval;
 
@@ -109,8 +123,7 @@ typedef struct cookie {
   uint32_t last_val_len;
 } cookie;
 
-static
-cookie* cookie_load(cookie* self, const char* data) {
+static cookie* cookie_load(cookie* self, const char* data) {
   int nkvs = 0;
   _cookie_keyval kvs[0x1000];
   const char *p1, *p2;
@@ -234,8 +247,7 @@ int cookie_find(const cookie* self, const char* _data, const char* _key) {
  *  - parsing error:
  *      < 0: bad cookie.
  */
-static
-const char* cookie_iter(const char* _data, const char** _key_, int* _key_len_, const char** _val_, int* _val_len_, int* _err_) {
+DECL_COV(static const char*, cookie_iter, const char* _data, const char** _key_, int* _key_len_, const char** _val_, int* _val_len_, int* _err_)
   const char *p1, *p2;
   int qq;
 
@@ -286,4 +298,6 @@ const char* cookie_iter(const char* _data, const char** _key_, int* _key_len_, c
 L_RET_ERR:
   *_err_ = -1;
   return NULL;
-}
+END_DECL_COV
+
+#endif // #ifndef COOKIE_H
