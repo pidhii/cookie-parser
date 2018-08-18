@@ -1,23 +1,23 @@
-#!/bin/perl
+#!/bin/perl -wl
 
 use strict;
-use feature qw/ say /;
+
 use Getopt::Long;
+use JSON;
 
 my ($ok, $nok);
+my $MULTIPLIER = 10;
 GetOptions (
   ok => \$ok,
   nok => \$nok,
+  'x=i' => \$MULTIPLIER,
 ) or die $!;
-my $MOD = $ok && 'ok' or $nok && 'nok' or say "use: ./tester.pl --ok/--nok" and exit -1;
-
-my (@keys, @values, @patterns);
+my $MOD;
+$MOD = $ok ? 'ok' : $nok ? 'nok' : (print "use: ./tester.pl --ok/--nok" and exit -1);
 
 my $seps = '()<>,;@:\"/[]?={} \t';
 my @name_chars = grep { index($seps, $_) == -1 }map { chr } (32..126);
 my @val_chars  = map { chr } (0x21, 0x23 .. 0x2B, 0x2D .. 0x3A, 0x3C .. 0x5B, 0x5D .. 0x7E);
-# say "name-chars: @name_chars";
-# say "value-chars: @val_chars";
 
 my $CRLF = "\r\n";
 my @OWS = ("$CRLF ", " ");
@@ -75,7 +75,7 @@ my @patterns_ok = (
   '[OWS-1]<cookie-name-1>=[DQ-1][cookie-octets-1][DQ-1][OWS-2]',
   '[OWS-1]<cookie-name-1>=[DQ-1][cookie-octets-1][DQ-1]; <cookie-name-2>=[DQ-2]<cookie-octets-2>[DQ-2][OWS-2]',
 );
-@patterns_ok = (@patterns_ok, @patterns_ok) x10;
+@patterns_ok = (@patterns_ok, @patterns_ok) x$MULTIPLIER;
 
 my @patterns_nok = (
   "",
@@ -115,19 +115,14 @@ my @patterns_nok = (
   '[OWS-1]<cookie-name-1>=[DQ-1][cookie-octets-1][DQ-1]<OWS-2>asdfa',
   '[OWS-1]<cookie-name-1>=[DQ-1][cookie-octets-1][DQ-1]; <cookie-name-2>=[DQ-2]<cookie-octets-2>[DQ-2]<OWS-2>asdfasdf',
 );
-@patterns_nok = (@patterns_nok, @patterns_nok) x10;
+@patterns_nok = (@patterns_nok, @patterns_nok) x$MULTIPLIER;
 
   # '[OWS-1][cookie-name-1]=[DQ-1][cookie-octets-1][DQ-2][OWS-2]',
   # '[OWS-1][cookie-name-1]=[DQ-1][cookie-octets-1][DQ-2]; [cookie-name-2]=[DQ-3][cookie-octets-2][DQ-2][OWS-2]',
 
 my @patterns = ($MOD eq 'ok') ? @patterns_ok : @patterns_nok;
 
-open OUT, '>&STDOUT' or die $!;
-pipe SUBRD, SUBWR or die $!;
-
 my @res;
-STDOUT->fdopen(\*SUBWR, "w") or die $!;
-# STDERR->fdopen(\*OUT, "w") or die $!;
 foreach my $pat (@patterns) {
   my $cookie = $pat;
   my @key_in;
@@ -140,57 +135,13 @@ foreach my $pat (@patterns) {
   $cookie = replace($cookie, 'OWS', \&ows);
   $cookie = replace($cookie, 'DQ', sub { '"'  });
  
-  system('./checker', '-c', $cookie);
-  while (1) {
-    chop(my $line = <SUBRD>);
-    last if $line eq "--END--";
-    push @key_out, $line;
-    chop($line = <SUBRD>);
-    push @val_out, $line;
-  }
-
-  my $correct = 1;
-  foreach my $i (0 .. $#key_in) {
-    $correct = 0 unless $key_in[$i] eq $key_out[$i] && $val_in[$i] eq $val_out[$i];
-  }
-
   push @res, {
     pattern => $pat,
     cookie => $cookie,
-    parse => {
-      keys => \@key_out,
-      vals => \@val_out,
-    },
-    expect => {
-      keys => \@key_in,
-      vals => \@val_in,
-    },
-    correct => $correct,
-    ok => int($? == 0)
+    expect => [
+      map { { key => $key_in[$_], val =>  $val_in[$_] } } 0..$#val_in
+    ],
   };
 }
-STDOUT->fdopen(\*OUT, "w");
-close OUT or die $!;
-close SUBRD or die $!;
 
-foreach my $r (@res) {
-  for (qw/pattern cookie/) {
-    $r->{$_} =~ s/$CRLF/<CRLF>/g ;
-    $r->{$_} =~ s/ /<SP>/g ;
-  }
-
-  say '-----------------------';
-  say "pattern: $r->{pattern}";
-  say "cookie: $r->{cookie}";
-
-  print "parse:  ";
-  print "{ \"@{ $r->{parse}->{keys} }[$_]\" : \"@{ $r->{parse}->{vals} }[$_]\" } " foreach 0 .. $#{ $r->{parse}->{keys} };
-  say;
-
-  print "expect: ";
-  print "{ \"@{ $r->{expect}->{keys} }[$_]\" : \"@{ $r->{expect}->{vals} }[$_]\" } " foreach 0 .. $#{ $r->{expect}->{keys} };
-  say;
-  # say "status: " . ($r->{ok} ? "\e[38;5;2mok\e[0m" : "\e[38;5;1merror\e[0m");
-  say "correct: $r->{correct}";
-  say "status: $r->{ok}";
-}
+print encode_json(\@res);

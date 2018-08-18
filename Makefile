@@ -1,34 +1,46 @@
-.PHONY: all test run test-srv
+.PHONY: all clean code-cov feez-test
 
-all: checker
+export ROOT ?= $(shell pwd)
+export SRC ?= $(ROOT)/src
+export TESTS ?= $(ROOT)/t
+export CINCLUDE ?= $(ROOT)/include
+export MK ?= $(ROOT)/mk
+export CINCLUDEFILES := $(wildcard $(INCLUDE)/*.h)
+export BUILD ?= $(ROOT)/build
 
-test: _test_ok _test_nok
-	@if grep -q -e 'status: 0' -e 'correct: 0' test-ok.log; then echo "OK-test failed"; else echo "OK-test succeed"; fi
-	@if grep -q -e 'status: 1' test-nok.log; then echo "NOK-test failed"; else echo "NOK-test succeed"; fi
+export CFLAGS = -O0 -ggdb -Wall -Wextra -Werror -Wno-sign-compare
 
-_test_ok: checker
-	@for _ in {1..500}; do ./tester.pl --ok ; done > test-ok.log
+# Targets:
+export COOKIE := $(BUILD)/libcookie.a
+export CHECKER := $(BUILD)/checker
 
-_test_nok: checker
-	@for _ in {1..200}; do ./tester.pl --nok ; done > test-nok.log
+# Sources:
+export COOKIESRC := $(SRC)/cookie.c
+export CHECKERSRC := $(SRC)/checker.c
 
-run: script
-	@spawn-fcgi -p 4445 -n $<
-
-test-srv: _launch $(foreach i,$(shell seq -s ' ' 1 20), _spawn$(i))
-	wait
+$(shell mkdir -p $(BUILD))
+ifdef dump
+	export DUMP := $(shell realpath $(dump))
+$(shell mkdir -p $(DUMP))
+endif
 
 # - - - - - - - - - - - - - - - - - - - -
-checker: main.c cookie.h
-	gcc -Og -ggdb -Wall -Wextra -Werror -Wno-sign-compare $(CPPFLAGS) -o $@ $<
+all: $(CHECKER)
+clean:
+	@rm -rfv $(BUILD)
+	@find -name '*.o' -exec rm -fv {} \+
+	@find -name '*.gcno' -exec rm -fv {} \+
+	@find -name '*.gcda' -exec rm -fv {} \+
+	@find -name '*.gcov' -exec rm -fv {} \+
+	@find -name gmon.out -exec rm -fv {} \+
 
-script: script.c cookie.h
-	gcc -lfcgi -o $@ $(CPPFLAGS) $<
+code-cov:
+	@$(MAKE) --no-print-directory -C $(TESTS) code-cov
 
 # - - - - - - - - - - - - - - - - - - - -
-_launch: script
-	@spawn-fcgi -p 4445 -n $< &
+include $(MK)/compile.mk
+include $(MK)/cookie.mk
 
-_spawn%:
-	@for _ in {1..1000}; do ./spawner.pl --len=$$((RANDOM % 1000)); done
+$(CHECKER): $(CHECKERSRC:%.c=%.o) $(COOKIE)
+	gcc $(CFLAGS) -o $@ $^
 
